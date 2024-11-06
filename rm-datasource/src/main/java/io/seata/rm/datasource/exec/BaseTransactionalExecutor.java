@@ -490,14 +490,15 @@ public abstract class BaseTransactionalExecutor<T, S extends Statement> implemen
         // build check sql
         String firstKey = pkValuesMap.keySet().stream().findFirst().get();
         int rowSize = pkValuesMap.get(firstKey).size();
-        suffix.append(WHERE).append(SqlGenerateUtils.buildWhereConditionByPKs(pkColumnNameList, rowSize, getDbType()));
+        suffix.append(WHERE);
         StringJoiner selectSQLJoin = new StringJoiner(", ", prefix, suffix.toString());
         List<String> insertColumnsUnEscape = recognizer.getInsertColumnsUnEscape();
         List<String> needColumns =
             getNeedColumns(tableMeta.getTableName(), sqlRecognizer.getTableAlias(), insertColumnsUnEscape);
         needColumns.forEach(selectSQLJoin::add);
+        String sqlStr = SqlGenerateUtils.buildSQLByPKs(selectSQLJoin.toString(), "", pkColumnNameList, rowSize, getDbType());
         ResultSet rs = null;
-        try (PreparedStatement ps = statementProxy.getConnection().prepareStatement(selectSQLJoin.toString())) {
+        try (PreparedStatement ps = statementProxy.getConnection().prepareStatement(sqlStr)) {
 
             int paramIndex = 1;
             for (int r = 0; r < rowSize; r++) {

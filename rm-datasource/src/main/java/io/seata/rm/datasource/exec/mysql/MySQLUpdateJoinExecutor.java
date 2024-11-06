@@ -196,16 +196,12 @@ public class MySQLUpdateJoinExecutor<T, S extends Statement> extends UpdateExecu
         TableMeta itemTableMeta = getTableMeta(itemTable);
         StringBuilder prefix = new StringBuilder("SELECT ");
         List<String> pkColumns = getColumnNamesWithTablePrefixList(itemTable, recognizer.getTableAlias(itemTable), itemTableMeta.getPrimaryKeyOnlyName());
-        String whereSql = SqlGenerateUtils.buildWhereConditionByPKs(pkColumns, beforeImage.pkRows().size(), getDbType());
-        String suffix = " FROM " + joinTable + " WHERE " + whereSql;
-        //maybe duplicate row for select join sql.remove duplicate row by 'group by' condition
-        suffix += GROUP_BY;
+        String suffix = " FROM " + joinTable + " WHERE ";
         List<String> itemTableUpdateColumns = getItemUpdateColumns(itemTableMeta, recognizer.getUpdateColumns());
         List<String> needUpdateColumns = getNeedColumns(itemTable, recognizer.getTableAlias(itemTable), itemTableUpdateColumns);
-        suffix += buildGroupBy(pkColumns, needUpdateColumns);
         StringJoiner selectSQLJoiner = new StringJoiner(", ", prefix.toString(), suffix);
         needUpdateColumns.forEach(selectSQLJoiner::add);
-        return selectSQLJoiner.toString();
+        return SqlGenerateUtils.buildSQLByPKs(selectSQLJoiner.toString(), GROUP_BY + buildGroupBy(pkColumns, needUpdateColumns), pkColumns, beforeImage.pkRows().size(), getDbType());
     }
 
     private List<String> getItemUpdateColumns(TableMeta itemTableMeta, List<String> updateColumns) {

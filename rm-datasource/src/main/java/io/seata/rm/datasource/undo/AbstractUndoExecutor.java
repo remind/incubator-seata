@@ -302,30 +302,36 @@ public abstract class AbstractUndoExecutor {
         // build check sql
         String firstKey = pkRowValues.keySet().stream().findFirst().get();
         int pkRowSize = pkRowValues.get(firstKey).size();
-        String checkSQL = String.format(CHECK_SQL_TEMPLATE, sqlUndoLog.getTableName(),
-                SqlGenerateUtils.buildWhereConditionByPKs(pkNameList, pkRowSize, connectionProxy.getDbType()));
-
-        PreparedStatement statement = null;
-        ResultSet checkSet = null;
-        TableRecords currentRecords;
-        try {
-            statement = conn.prepareStatement(checkSQL);
-            int paramIndex = 1;
-            int rowSize = pkRowValues.get(pkNameList.get(0)).size();
-            for (int r = 0; r < rowSize; r++) {
-                for (int c = 0; c < pkNameList.size(); c++) {
-                    List<Field> pkColumnValueList = pkRowValues.get(pkNameList.get(c));
-                    Field field = pkColumnValueList.get(r);
-                    int dataType = tableMeta.getColumnMeta(field.getName()).getDataType();
-                    statement.setObject(paramIndex, field.getValue(), dataType);
-                    paramIndex++;
+        List<SqlGenerateUtils.WhereSql> sqlConditions = SqlGenerateUtils.buildWhereConditionListByPKs(pkNameList, pkRowSize, connectionProxy.getDbType());
+        List<TableRecords> currentRecordsList = new ArrayList<>();
+        int totalRowIndex = 0;
+        for (SqlGenerateUtils.WhereSql sqlCondition : sqlConditions) {
+            String checkSQL = String.format(CHECK_SQL_TEMPLATE, sqlUndoLog.getTableName(), sqlCondition.getSql());
+            PreparedStatement statement = null;
+            ResultSet checkSet = null;
+            try {
+                statement = conn.prepareStatement(checkSQL);
+                int paramIndex = 1;
+                for (int r = 0; r < sqlCondition.getRowSize(); r++) {
+                    for (int c = 0; c < sqlCondition.getPkSize(); c++) {
+                        List<Field> pkColumnValueList = pkRowValues.get(pkNameList.get(c));
+                        Field field = pkColumnValueList.get(totalRowIndex + r);
+                        int dataType = tableMeta.getColumnMeta(field.getName()).getDataType();
+                        statement.setObject(paramIndex, field.getValue(), dataType);
+                        paramIndex++;
+                    }
                 }
-            }
+                totalRowIndex += sqlCondition.getRowSize();
 
-            checkSet = statement.executeQuery();
-            currentRecords = TableRecords.buildRecords(tableMeta, checkSet);
-        } finally {
-            IOUtil.close(checkSet, statement);
+                checkSet = statement.executeQuery();
+                currentRecordsList.add(TableRecords.buildRecords(tableMeta, checkSet));
+            } finally {
+                IOUtil.close(checkSet, statement);
+            }
+        }
+        TableRecords currentRecords = new TableRecords(tableMeta);
+        for (TableRecords tableRecords : currentRecordsList) {
+            tableRecords.getRows().forEach(currentRecords::add);
         }
         return currentRecords;
     }
