@@ -303,7 +303,7 @@ public abstract class AbstractUndoExecutor {
         String firstKey = pkRowValues.keySet().stream().findFirst().get();
         int pkRowSize = pkRowValues.get(firstKey).size();
         List<SqlGenerateUtils.WhereSql> sqlConditions = SqlGenerateUtils.buildWhereConditionListByPKs(pkNameList, pkRowSize, connectionProxy.getDbType());
-        List<TableRecords> currentRecordsList = new ArrayList<>();
+        TableRecords currentRecords = new TableRecords(tableMeta);
         int totalRowIndex = 0;
         for (SqlGenerateUtils.WhereSql sqlCondition : sqlConditions) {
             String checkSQL = String.format(CHECK_SQL_TEMPLATE, sqlUndoLog.getTableName(), sqlCondition.getSql());
@@ -324,14 +324,10 @@ public abstract class AbstractUndoExecutor {
                 totalRowIndex += sqlCondition.getRowSize();
 
                 checkSet = statement.executeQuery();
-                currentRecordsList.add(TableRecords.buildRecords(tableMeta, checkSet));
+                currentRecords.getRows().addAll(TableRecords.buildRecords(tableMeta, checkSet).getRows());
             } finally {
                 IOUtil.close(checkSet, statement);
             }
-        }
-        TableRecords currentRecords = new TableRecords(tableMeta);
-        for (TableRecords tableRecords : currentRecordsList) {
-            tableRecords.getRows().forEach(currentRecords::add);
         }
         return currentRecords;
     }
